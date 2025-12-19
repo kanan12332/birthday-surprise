@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>生日礼物</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<style>
+html,body{
+  margin:0;
+  height:100%;
+  overflow:hidden;
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  color:#fff;
+  background:linear-gradient(to bottom,#000428,#004e92);
+  -webkit-tap-highlight-color: transparent;
+}
+
+#gift-screen{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#gift-box{
+  font-size:120px;
+  animation:pulse 1.2s infinite ease-in-out;
+  user-select:none;
+}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+
+.particle{
+  position:absolute;
+  width:7px;
+  height:7px;
+  background:#ffd85c;
+  border-radius:50%;
+  pointer-events:none;
+  animation:boom .9s ease-out forwards;
+}
+@keyframes boom{to{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0}}
+
+#main-screen{
+  position:absolute;
+  inset:0;
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:0 20px;
+  text-align:center;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#text-box{
+  font-size:22px;
+  line-height:1.9;
+  max-width:620px;
+  padding:30px 0;
+  word-break: break-word;
+}
+
+.snow-container{
+  position:absolute;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  pointer-events:none;
+  overflow:hidden;
+}
+.snowflake{
+  position:absolute;
+  top:-60px;
+  pointer-events:none;
+  background-size:contain;
+  background-repeat:no-repeat;
+  will-change:transform, top;
+}
+
+.trail-particle{
+  position:absolute;
+  width:4px;
+  height:4px;
+  border-radius:50%;
+  background-color:rgba(255,255,255,0.8);
+  opacity:0;
+  pointer-events:none;
+  filter:blur(1px);
+}
+
+.stars{
+  position:absolute;
+  width:2px;
+  height:2px;
+  background:#fff;
+  border-radius:50%;
+  animation:twinkle 3s ease-in-out infinite;
+}
+@keyframes twinkle{0%,100%{opacity:.2}50%{opacity:1}}
+
+@media screen and (max-width: 768px) {
+  #gift-box {
+    font-size: 80px;
+  }
+  
+  #text-box {
+    font-size: 18px;
+    line-height: 1.8;
+    max-width: 90%;
+    padding: 20px 0;
+  }
+  
+  #main-screen {
+    padding: 0 15px;
+    justify-content: flex-start;
+    padding-top: 20px;
+  }
+  
+  .particle {
+    width: 5px;
+    height: 5px;
+  }
+  
+  .trail-particle {
+    width: 3px;
+    height: 3px;
+  }
+  
+  .snowflake {
+    max-width: 40px;
+    max-height: 40px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  #gift-box {
+    font-size: 60px;
+  }
+  
+  #text-box {
+    font-size: 16px;
+    line-height: 1.7;
+    max-width: 95%;
+  }
+  
+  #main-screen {
+    padding: 0 10px;
+    padding-top: 15px;
+  }
+}
+
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  #text-box {
+    font-size: 16px;
+    line-height: 1.6;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  
+  #main-screen {
+    justify-content: flex-start;
+    padding-top: 10px;
+  }
+}
+
+@supports (-webkit-touch-callout: none) {
+  body {
+    height: -webkit-fill-available;
+  }
+}
+</style>
+</head>
+<body>
+
+<audio id="bgm" loop muted playsinline>
+  <source src="bgm.MP3" type="audio/mpeg">
+</audio>
+
+<div id="gift-screen">
+  <div id="gift-box">🎁</div>
+</div>
+
+<div id="main-screen">
+  <div id="text-box"></div>
+</div>
+
+<script>
+// ============== 配置区 ==============
+const sentences = [
+    "邓自瑜，祝你18岁生日快乐🎂！",
+    "成年是一个闪闪发光的开始，而你值得所有美好的事物。",
+    "想起刚认识你的时候，你还只是个初中生。",
+    "一转眼，你已经亭亭玉立，成为一个真正的大人了。",
+    "时间过得真快，但更让我开心的是，能一路见证你的成长。",
+    "在这个特殊的日子里，我想送你一份比较特别的生日礼物。",
+    "就是我自己（bushi）。",
+    "我也在捣鼓编程和开发应用，所以如果你在学习或工作中遇到技术难题，可以随时找我聊聊。",
+    "至少，你多了一个随时在线的\"同行伙伴\"。",
+    "因为我一直都挺喜欢你的，所以我希望能成为你的好朋友。",
+    "起码从朋友开始，最后发展成闺蜜（bushi）。",
+    "最后，希望这封电子礼物能给你带来快乐！",
+    "再次祝你18岁生日快乐，成年快乐哦✨！"
+];
+
+const snowImgs = ['snow1.png', 'snow2.png', 'snow3.png'];
+
+// ============== 工具函数 ==============
+
+// 打字机效果
+async function typeWriter(el, text, speed = 110) {
+    for (let c of text) {
+        el.textContent += c;
+        await new Promise(r => setTimeout(r, speed));
+    }
+    el.innerHTML += '<br>';
+}
+
+// 创建拖尾粒子
+function createTrailParticle(x, y, size, color) {
+    const trail = document.createElement('div');
+    trail.className = 'trail-particle';
+    trail.style.left = x + 'px';
+    trail.style.top = y + 'px';
+    trail.style.width = size + 'px';
+    trail.style.height = size + 'px';
+    trail.style.backgroundColor = color;
+    
+    trail.animate([
+        { opacity: 0.8, transform: 'scale(1)' },
+        { opacity: 0, transform: 'scale(1.3)' }
+    ], {
+        duration: 1000,
+        easing: 'ease-out'
+    });
+    
+    document.body.appendChild(trail);
+    
+    setTimeout(() => {
+        if (trail.parentNode) trail.parentNode.removeChild(trail);
+    }, 1000);
+}
+
+// 雪花效果
+function startSnow() {
+    const snowContainer = document.createElement('div');
+    snowContainer.className = 'snow-container';
+    document.body.appendChild(snowContainer);
+    
+    const snowflakes = [];
+    
+    function createSnowflake() {
+        const snowflake = document.createElement('div');
+        snowflake.className = 'snowflake';
+        
+        const size = 20 + Math.random() * 30;
+        snowflake.style.width = size + 'px';
+        snowflake.style.height = size + 'px';
+        
+        const leftPos = Math.random() * 100;
+        snowflake.style.left = leftPos + '%';
+        
+        const randomImg = snowImgs[Math.floor(Math.random() * snowImgs.length)];
+        snowflake.style.backgroundImage = 'url(' + randomImg + ')';
+        
+        snowflake.style.opacity = 0.7 + Math.random() * 0.3;
+        snowContainer.appendChild(snowflake);
+        
+        const screenHeight = window.innerHeight;
+        const totalDistance = screenHeight + 100;
+        const duration = 18000 + Math.random() * 12000;
+        const startTime = Date.now();
+        const rotationSpeed = 0.05 + Math.random() * 0.05;
+        let rotation = Math.random() * 360;
+        let lastTrailTime = 0;
+        const trailInterval = 250;
+        const microWobble = Math.random() * 0.5;
+        
+        function updateSnowflake() {
+            const currentTime = Date.now();
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            if (progress >= 1) {
+                if (snowflake.parentNode) {
+                    snowflake.parentNode.removeChild(snowflake);
+                }
+                const index = snowflakes.indexOf(snowflake);
+                if (index > -1) snowflakes.splice(index, 1);
+                return;
+            }
+            
+            const currentTop = -60 + progress * totalDistance;
+            rotation += rotationSpeed;
+            if (rotation >= 360) rotation -= 360;
+            const microOffset = Math.sin(currentTime * 0.001) * microWobble;
+            
+            snowflake.style.top = currentTop + 'px';
+            snowflake.style.transform = 'translateX(' + microOffset + 'px) rotate(' + rotation + 'deg)';
+            
+            if (currentTime - lastTrailTime > trailInterval) {
+                const rect = snowflake.getBoundingClientRect();
+                const x = rect.left + rect.width / 2;
+                const y = rect.top + rect.height / 2;
+                const trailSize = size * (0.2 + Math.random() * 0.15);
+                const trailColor = 'rgba(255, 255, 255, ' + (0.4 + Math.random() * 0.3) + ')';
+                createTrailParticle(x, y, trailSize, trailColor);
+                
+                lastTrailTime = currentTime;
+            }
+            
+            requestAnimationFrame(updateSnowflake);
+        }
+        
+        requestAnimationFrame(updateSnowflake);
+        snowflakes.push(snowflake);
+    }
+    
+    for (let i = 0; i < 35; i++) {
+        setTimeout(() => createSnowflake(), i * 600);
+    }
+    
+    const snowInterval = setInterval(() => {
+        if (snowflakes.length < 50) {
+            createSnowflake();
+        }
+    }, 900);
+    
+    return () => {
+        clearInterval(snowInterval);
+        if (snowContainer.parentNode) {
+            snowContainer.parentNode.removeChild(snowContainer);
+        }
+    };
+}
+
+// 添加星星
+function addStars() {
+    for (let i = 0; i < 120; i++) {
+        const s = document.createElement('div');
+        s.className = 'stars';
+        s.style.top = Math.random() * 100 + '%';
+        s.style.left = Math.random() * 100 + '%';
+        s.style.animationDelay = Math.random() * 3 + 's';
+        document.body.appendChild(s);
+    }
+}
+
+// ============== 主逻辑 ==============
+
+// 音频解锁
+let unlocked = false;
+function unlockAudio() {
+    if (unlocked) return;
+    const bgm = document.getElementById('bgm');
+    bgm.currentTime = 0;
+    bgm.muted = false;
+    bgm.play().catch(() => {
+        console.log('音频播放失败，可能需要用户交互');
+    });
+    unlocked = true;
+}
+
+document.body.addEventListener('click', unlockAudio, {once: true});
+
+// 拆礼物逻辑
+let cleanupSnow = null;
+
+document.getElementById('gift-screen').addEventListener('click', function() {
+    unlockAudio();
+    
+    // 粒子爆炸
+    const box = document.getElementById('gift-box');
+    const rect = box.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    
+    for (let i = 0; i < 50; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 60 + Math.random() * 140;
+        p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+        p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+        p.style.left = cx + 'px';
+        p.style.top = cy + 'px';
+        document.body.appendChild(p);
+        setTimeout(() => {
+            if (p.parentNode) {
+                p.parentNode.removeChild(p);
+            }
+        }, 900);
+    }
+    
+    // 切换画面
+    setTimeout(() => {
+        document.getElementById('gift-screen').style.display = 'none';
+        document.getElementById('main-screen').style.display = 'flex';
+        addStars();
+        cleanupSnow = startSnow();
+        startTyping();
+    }, 700);
+});
+
+// 打字效果
+async function startTyping() {
+    const box = document.getElementById('text-box');
+    box.innerHTML = '';
+    for (let s of sentences) {
+        await typeWriter(box, s);
+        await new Promise(r => setTimeout(r, 500));
+    }
+}
+
+// 页面加载完成
+window.addEventListener('load', function() {
+    console.log('页面加载完成！');
+});
+
+// 窗口大小变化
+window.addEventListener('resize', function() {
+    console.log('窗口大小变化');
+});
+</script>
+</body>
+</html>
