@@ -101,6 +101,28 @@ html,body{
 }
 @keyframes twinkle{0%,100%{opacity:.2}50%{opacity:1}}
 
+/* 手动播放按钮样式 */
+#manual-play-btn {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-size: 16px;
+  font-weight: bold;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  cursor: pointer;
+  display: none; /* 默认隐藏 */
+}
+#manual-play-btn.error {
+  background: #ff6b6b;
+}
+
 @media screen and (max-width: 768px) {
   #gift-box {
     font-size: 80px;
@@ -132,6 +154,12 @@ html,body{
   .snowflake {
     max-width: 40px;
     max-height: 40px;
+  }
+  
+  #manual-play-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    bottom: 15px;
   }
 }
 
@@ -187,6 +215,8 @@ html,body{
   <div id="text-box"></div>
 </div>
 
+<button id="manual-play-btn">🎵 点此开启背景音乐</button>
+
 <script>
 // ============== 配置区 ==============
 const sentences = [
@@ -199,10 +229,11 @@ const sentences = [
   "然后其实我一直都喜欢着你的（不是告白，我就是妹控），所以我希望能成为你的好朋友。",
   "最后，希望这封电子贺卡能给你带来快乐！",
   "再次祝你18岁生日快乐，成年快乐哦✨！",
-  "ps：垃圾微信，我本来备案的域名，叫生日快乐.site，浏览器可以直接打开，但微信不支持中文域名，害得我只能把中文给转译了，变得好难听的域名，而且bgm有时也会出bug...."
+   "ps：垃圾微信，我本来备案的域名，叫生日快乐.site，浏览器可以直接打开，但微信不支持中文域名，害得我只能把中文给转译了，变得好难听的域名，而且bgm有时也会出bug...."
 ];
 
 const snowImgs = ['snow1.png', 'snow2.png', 'snow3.png'];
+let cleanupSnow = null; // 雪花清理函数
 
 // ============== 工具函数 ==============
 
@@ -345,30 +376,73 @@ function addStars() {
     }
 }
 
-// ============== 主逻辑 ==============
+// ============== 音频核心逻辑 ==============
+const bgm = document.getElementById('bgm');
+const manualPlayBtn = document.getElementById('manual-play-btn');
+let bgmPlayAttempted = false;
 
-// 音频解锁
-let unlocked = false;
-function unlockAudio() {
-    if (unlocked) return;
-    const bgm = document.getElementById('bgm');
-    bgm.currentTime = 0;
+// 1. 优化预加载策略
+function preloadAudio() {
+    bgm.muted = true;
+    bgm.preload = 'auto';
+    
+    // 静音预加载
+    const loadPromise = bgm.play();
+    if (loadPromise !== undefined) {
+        loadPromise.then(() => {
+            bgm.pause();
+            console.log('音频预加载成功');
+        }).catch(e => {
+            console.log('预加载被阻止，等待用户交互');
+        });
+    }
+    
     bgm.muted = false;
-    bgm.play().catch(() => {
-        console.log('音频播放失败，可能需要用户交互');
-    });
-    unlocked = true;
 }
 
-document.body.addEventListener('click', unlockAudio, {once: true});
-
-// 拆礼物逻辑
-let cleanupSnow = null;
-
-document.getElementById('gift-screen').addEventListener('click', function() {
-    unlockAudio();
+// 2. 播放音频（主函数）
+function playBackgroundMusic() {
+    if (bgmPlayAttempted) return;
     
-    // 粒子爆炸
+    bgmPlayAttempted = true;
+    bgm.currentTime = 0;
+    
+    const playPromise = bgm.play();
+    
+    if (playPromise !== undefined) {
+        playPromise.then(() => {
+            console.log('BGM播放成功');
+            manualPlayBtn.style.display = 'none';
+        }).catch(error => {
+            console.warn('自动播放被阻止:', error);
+            showManualPlayButton();
+        });
+    }
+}
+
+// 3. 显示手动播放按钮
+function showManualPlayButton() {
+    manualPlayBtn.style.display = 'block';
+    manualPlayBtn.textContent = '🎵 点此开启背景音乐';
+    manualPlayBtn.classList.remove('error');
+}
+
+// 4. 手动播放按钮事件
+manualPlayBtn.addEventListener('click', function() {
+    bgm.play().then(() => {
+        this.style.display = 'none';
+    }).catch(e => {
+        this.textContent = '🎵 播放失败，请检查浏览器设置';
+        this.classList.add('error');
+    });
+});
+
+// ============== 主交互逻辑 ==============
+document.getElementById('gift-screen').addEventListener('click', function() {
+    // 触发音频播放
+    playBackgroundMusic();
+    
+    // 粒子爆炸效果
     const box = document.getElementById('gift-box');
     const rect = box.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
@@ -385,9 +459,7 @@ document.getElementById('gift-screen').addEventListener('click', function() {
         p.style.top = cy + 'px';
         document.body.appendChild(p);
         setTimeout(() => {
-            if (p.parentNode) {
-                p.parentNode.removeChild(p);
-            }
+            if (p.parentNode) p.parentNode.removeChild(p);
         }, 900);
     }
     
@@ -401,6 +473,19 @@ document.getElementById('gift-screen').addEventListener('click', function() {
     }, 700);
 });
 
+// ============== 页面初始化 ==============
+window.addEventListener('load', function() {
+    console.log('页面加载完成，开始预加载音频');
+    preloadAudio();
+    
+    // 添加版本参数防止缓存
+    const links = document.querySelectorAll('link[rel="stylesheet"], script[src]');
+    links.forEach(link => {
+        if (link.href) link.href += '?v=' + Date.now();
+        if (link.src) link.src += '?v=' + Date.now();
+    });
+});
+
 // 打字效果
 async function startTyping() {
     const box = document.getElementById('text-box');
@@ -411,15 +496,18 @@ async function startTyping() {
     }
 }
 
-// 页面加载完成
-window.addEventListener('load', function() {
-    console.log('页面加载完成！');
-});
-
 // 窗口大小变化
 window.addEventListener('resize', function() {
-    console.log('窗口大小变化');
+    console.log('窗口大小变化，当前尺寸:', window.innerWidth, 'x', window.innerHeight);
 });
+
+// 防止移动端双击缩放
+let lastTouchEnd = 0;
+document.addEventListener('touchend', function(event) {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) event.preventDefault();
+    lastTouchEnd = now;
+}, false);
 </script>
 </body>
 </html>
